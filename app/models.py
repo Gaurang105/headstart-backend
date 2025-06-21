@@ -70,18 +70,18 @@ class TranscriptItem(BaseModel):
 
 class YouTubeResponse(BaseModel):
     id: str
-    thumbnail: str
+    thumbnail: Optional[str] = None
     type: str
     title: str
-    description: str
-    commentCountText: str
-    commentCountInt: int
-    likeCountText: str
-    likeCountInt: int
-    viewCountText: str
-    viewCountInt: int
-    publishDateText: str
-    publishDate: str
+    description: Optional[str] = None
+    commentCountText: Optional[str] = None
+    commentCountInt: Optional[int] = None
+    likeCountText: Optional[str] = None
+    likeCountInt: Optional[int] = None
+    viewCountText: Optional[str] = None
+    viewCountInt: Optional[int] = None
+    publishDateText: Optional[str] = None
+    publishDate: Optional[str] = None
     channel: YouTubeChannel
     watchNextVideos: Optional[List[YouTubeVideo]] = []
     transcript: Optional[List[TranscriptItem]] = []

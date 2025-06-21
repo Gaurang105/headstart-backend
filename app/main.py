@@ -26,7 +26,7 @@ app.add_middleware(
 
 
 @app.get("/health")
-async def root():
+async def health_check():
     """Health check endpoint."""
     return {
         "message": "Headstart Backend API is running",

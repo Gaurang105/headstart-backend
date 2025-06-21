@@ -78,6 +78,7 @@ class ContentProcessor:
                 response.raise_for_status()
                 
                 data = response.json()
+                print("YouTube API Response:", data)
                 return YouTubeResponse(**data)
                 
         except httpx.HTTPError as e:
@@ -107,6 +108,7 @@ class ContentProcessor:
                 response.raise_for_status()
                 
                 data = response.json()
+                print("Instagram API Response:", data)
                 return InstagramResponse(**data)
                 
         except httpx.HTTPError as e:
