@@ -15,6 +15,10 @@ class Settings:
     YOUTUBE_API_URL = "https://api.scrapecreators.com/v1/youtube/video"
     INSTAGRAM_API_URL = "https://api.scrapecreators.com/v2/instagram/media/transcript"
     
+    # Location extraction API keys
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+    
     # Request timeout in seconds
     REQUEST_TIMEOUT = 60
     

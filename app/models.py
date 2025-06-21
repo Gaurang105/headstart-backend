@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 
 
 class WhatsAppMessage(BaseModel):
@@ -99,9 +98,22 @@ class InstagramResponse(BaseModel):
     transcripts: List[InstagramTranscript]
 
 
+class LocationData(BaseModel):
+    poi_name: str
+    category: str
+    geo_location: List[float]  # [lat, lng]
+    maps_url: str
+    website_url: str
+    photos_links: List[Dict[str, Any]]
+    city: str
+    tgid: Optional[str] = None
+
+
 class ProcessedResponse(BaseModel):
     success: bool
-    platform: str
-    extracted_data: ExtractedData
-    content_data: Optional[Dict[str, Any]] = None
+    link: str
+    locations: Optional[List[LocationData]] = None
+    author: Optional[str] = None
+    name: str
+    phoneNo: str
     error: Optional[str] = None 

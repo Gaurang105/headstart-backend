@@ -1,16 +1,13 @@
 import json
 from enum import Enum
-from typing import List, Optional
 import google.generativeai as genai
-from process_google_places import ProcessGooglePlaces
-import os
+from app.analysis.process_google_places import ProcessGooglePlaces
+from app.config import settings
 
 
 class VideoType(Enum):
     YOUTUBE = "youtube"
-    INSTAGRAM = "instagram" 
-    TIKTOK = "tiktok"
-    BLOG = "blog"
+    INSTAGRAM = "instagram"
 
 possible_categories = ["Eateries", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
 
@@ -38,25 +35,13 @@ category_descriptions = """Here’s what each category means:
   live music venues, lounges, and any social venue that thrives at night."""
 
 class ExtractLocations:
-    """
-    A class to extract location information from video transcripts using Google Gemini API.
-    """
-    
     def __init__(self, gemini_client=None):
-        """
-        Initialize the ExtractLocations class.
-        
-        Args:
-            gemini_client: Optional Gemini client instance. If not provided, will create one.
-        """
         if gemini_client:
             self.client = gemini_client
         else:
-            # Initialize Gemini client (you'll need to set GOOGLE_API_KEY environment variable)
-            genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+            genai.configure(api_key=settings.GOOGLE_API_KEY)
             self.client = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Initialize Google Places API (optional - will be None if API key not set)
         try:
             self.google_places = ProcessGooglePlaces()
         except ValueError as e:
@@ -64,19 +49,6 @@ class ExtractLocations:
             self.google_places = None
 
     def send_llm_request(self, transcript_text, timestamps=None, timestamped=False):
-        """
-        Extract locations from transcript using Google Gemini API with structured response.
-        
-        Args:
-            transcript_text (str): Full transcript text
-            timestamps (list, optional): List of timestamped transcript segments
-            timestamped (bool): Whether to include timestamps in the output
-            
-        Returns:
-            dict: Extracted locations with optional timestamps
-        """
-        
-        # Base prompt
         base_prompt = f"""
         Extract all location names, landmarks, restaurants, cafes, and 
         attractions from this travel video transcript.  Do not add city, 
@@ -105,12 +77,10 @@ class ExtractLocations:
         Full transcript: {transcript_text}
         """
         
-        # Add timestamp information if provided
         if timestamped and timestamps:
             base_prompt += f"\nTimestamped segments: {timestamps}\n"
             base_prompt += "\nUse the timestamp information provided to match locations with their timestamps."
         
-        # Complete prompt
         prompt = base_prompt + """
         Focus on:
         - Landmarks: monuments, temples, historical sites, famous buildings
@@ -119,7 +89,7 @@ class ExtractLocations:
         """
         
         try:
-            # Define schema based on whether timestamps are needed
+            # schema based on whether timestamps are needed
             if timestamped:
                 response_schema = {
                     "type": "object",
@@ -191,13 +161,12 @@ class ExtractLocations:
                 response_schema=response_schema
             )
             
-            # Make Gemini API call with structured response
+            # Gemini API call with structured response
             response = self.client.generate_content(
                 prompt,
                 generation_config=generation_config
             )
-            
-            # Parse the response
+
             result_json = response.text
             result = json.loads(result_json)
             return result
@@ -207,16 +176,6 @@ class ExtractLocations:
             return None
 
     def _process_location_results(self, llm_result, google_places_results):
-        """
-        Process and combine LLM results with Google Places data.
-        
-        Args:
-            llm_result (dict): Results from LLM extraction
-            google_places_results (list): Results from Google Places API
-            
-        Returns:
-            list: Processed location results with combined data
-        """
         if not llm_result or 'locations' not in llm_result:
             return []
             
@@ -258,24 +217,12 @@ class ExtractLocations:
         return final_results
 
     def process_yt(self, data):
-        """
-        Process YouTube video data to extract locations.
-        
-        Args:
-            data (dict): YouTube video data containing transcript information
-            
-        Returns:
-            list: Processed location results
-        """
         try:
-            # Extract the transcript_only_text field
             transcript_text = data.get('transcript_only_text')
             
-            # Extract the timestamped transcript
             transcript_timestamps = data.get('transcript', [])
             
             if transcript_text and transcript_timestamps:            
-                # Convert timestamped transcript to a more usable format
                 timestamps = []
                 for entry in transcript_timestamps:
                     timestamps.append({
@@ -283,19 +230,15 @@ class ExtractLocations:
                         'startTimeText': entry.get('startTimeText', '')
                     })
                 
-                # Get locations from LLM
                 llm_result = self.send_llm_request(transcript_text, timestamps, timestamped=True)
                 
                 if llm_result and 'locations' in llm_result:
-                    # Extract location strings from LLM result
                     location_strings = [location['name'] for location in llm_result['locations']]
                     
-                    # Get Google Places details for each location (if available)
                     if self.google_places:
                         google_places_results = self.google_places.get_google_places(location_strings)
                         return self._process_location_results(llm_result, google_places_results)
                     else:
-                        # Fallback to just LLM results if Google Places API not available
                         return self._process_location_results(llm_result, [])
                 else:
                     print("No locations found in LLM response.")
@@ -312,32 +255,19 @@ class ExtractLocations:
             return None
 
     def process_reels(self, data):
-        """
-        Process Instagram Reels data to extract locations.
-        
-        Args:
-            data (dict): Instagram Reels data containing transcript information
-            
-        Returns:
-            list: Processed location results
-        """
         try:
-            # Extract the transcript_only_text field
             transcript_text = data.get('transcripts')[0].get('text')
             
             # Get locations from LLM
             llm_result = self.send_llm_request(transcript_text, timestamped=False)
             
             if llm_result and 'locations' in llm_result:
-                # Extract location strings from LLM result
                 location_strings = [location['name'] for location in llm_result['locations']]
                 
-                # Get Google Places details for each location (if available)
                 if self.google_places:
                     google_places_results = self.google_places.get_google_places(location_strings)
                     return self._process_location_results(llm_result, google_places_results)
                 else:
-                    # Fallback to just LLM results if Google Places API not available
                     return self._process_location_results(llm_result, [])
             else:
                 print("No locations found in LLM response.")
@@ -347,57 +277,23 @@ class ExtractLocations:
             print(f"Error: {e}")
             return None
 
-    def extract_transcript_text_tiktok(self, data):
-        """
-        Extract transcript text from TikTok data.
-        
-        Args:
-            data (dict): TikTok video data
-            
-        Returns:
-            dict: Extracted locations (currently returns None as not implemented)
-        """
-        return None
-
     def extract_locations(self, data, video_type):
-        """
-        Main method to extract locations from video data based on video type.
-        
-        Args:
-            data (dict): Video data containing transcript information
-            video_type (VideoType): Type of video (YouTube, Instagram, TikTok, etc.)
-            
-        Returns:
-            dict: Extracted locations
-        """ 
         if video_type == VideoType.YOUTUBE:
             return self.process_yt(data)
         elif video_type == VideoType.INSTAGRAM:
             return self.process_reels(data)
-        elif video_type == VideoType.TIKTOK:
-            return self.extract_transcript_text_tiktok(data)
         else:
             print(f"Unsupported video type: {video_type}")
             return None
 
 
 if __name__ == "__main__":
-    # Create an instance of ExtractLocations
     extractor = ExtractLocations()
-    
-    #Path to the JSON file
+
     json_file = "tests/youtube.json"
     with open(json_file, 'r', encoding='utf-8') as file:
         data = json.load(file)
     
-    # Extract and print the transcript
     locations = extractor.extract_locations(data, VideoType.YOUTUBE) 
-
-    # json_file = "tests/reel.json"
-    # with open(json_file, 'r', encoding='utf-8') as file:
-    #     data = json.load(file)
-    
-    # # Extract and print the transcript
-    # locations = extractor.extract_locations(data, VideoType.INSTAGRAM) 
 
     print(locations)
