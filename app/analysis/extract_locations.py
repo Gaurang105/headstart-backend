@@ -12,11 +12,11 @@ class VideoType(Enum):
     TIKTOK = "tiktok"
     BLOG = "blog"
 
-possible_categories = ["Eats", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
+possible_categories = ["Eateries", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
 
 category_descriptions = """Here’s what each category means:
 
-- Eats: Any location primarily focused on food or drink. Includes restaurants, cafes, food stalls, dessert
+- Eateries: Any location primarily focused on food or drink. Includes restaurants, cafes, food stalls, dessert
   shops, street food spots, breweries, or places known for a signature dish or culinary experience.
 
 - Attractions: Well-known or iconic places that people visit for sightseeing or experiences. This includes
@@ -386,18 +386,18 @@ if __name__ == "__main__":
     extractor = ExtractLocations()
     
     #Path to the JSON file
-    # json_file = "tests/youtube.json"
-    # with open(json_file, 'r', encoding='utf-8') as file:
-    #     data = json.load(file)
-    
-    # # Extract and print the transcript
-    # locations = extractor.extract_locations(data, VideoType.YOUTUBE) 
-
-    json_file = "tests/reel.json"
+    json_file = "tests/youtube.json"
     with open(json_file, 'r', encoding='utf-8') as file:
         data = json.load(file)
     
     # Extract and print the transcript
-    locations = extractor.extract_locations(data, VideoType.INSTAGRAM) 
+    locations = extractor.extract_locations(data, VideoType.YOUTUBE) 
+
+    # json_file = "tests/reel.json"
+    # with open(json_file, 'r', encoding='utf-8') as file:
+    #     data = json.load(file)
+    
+    # # Extract and print the transcript
+    # locations = extractor.extract_locations(data, VideoType.INSTAGRAM) 
 
     print(locations)
