@@ -27,8 +27,8 @@ class Settings:
     REQUEST_TIMEOUT = 60
     
     # Environment
-    ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-    DEBUG = os.getenv("DEBUG", "true").lower() == "true"
+    ENVIRONMENT = os.getenv("ENVIRONMENT")
+    DEBUG = os.getenv("DEBUG")
 
 
 settings = Settings()
