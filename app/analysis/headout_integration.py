@@ -59,21 +59,3 @@ class HeadoutIntegration:
             return None
         except Exception as e:
             return None
-
-async def main():
-    """Main function to test the Headout search API integration."""
-    city = "london"
-    poi_name = "tower of london"
-    
-    # Create an instance of HeadoutIntegration
-    headout = HeadoutIntegration()
-    
-    product_id = await headout.search_headout_products(city, poi_name)
-    
-    if product_id:
-        print(f"Successfully found product ID: {product_id}")
-    else:
-        print(f"Failed to find product for {city} + {poi_name}")
-
-if __name__ == "__main__":
-    asyncio.run(main())
