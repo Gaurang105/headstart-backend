@@ -133,4 +133,43 @@ class LoginResponse(BaseModel):
     user_exists: bool
     name: str
     phoneNo: str
+    error: Optional[str] = None
+
+
+class GetCitiesRequest(BaseModel):
+    phoneNo: str
+
+
+class GetCitiesResponse(BaseModel):
+    success: bool
+    phoneNo: str
+    cities: List[str]
+    total_cities: int
+    message: str
+    error: Optional[str] = None
+
+
+class GetPoisRequest(BaseModel):
+    phoneNo: str
+
+
+class PoiData(BaseModel):
+    poi_name: str
+    category: str
+    geo_location: List[float]  # [lat, lng]
+    maps_url: str
+    website_url: str
+    photos_links: List[Dict[str, Any]]
+    city: str
+    tgid: Optional[str] = None
+    source_link: str
+    added_at: str  # ISO datetime string
+
+
+class GetPoisResponse(BaseModel):
+    success: bool
+    phoneNo: str
+    pois: List[PoiData]
+    total_pois: int
+    message: str
     error: Optional[str] = None 

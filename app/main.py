@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.config import settings
-from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse
+from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse, GetCitiesRequest, GetCitiesResponse, GetPoisRequest, PoiData, GetPoisResponse
 from app.services import content_processor
 from app.database import connect_to_mongo, close_mongo_connection
 from app.db_services import db_service
@@ -116,6 +116,109 @@ async def login_user(login_data: LoginRequest):
                     detail="Failed to create user"
                 )
                 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@app.post("/api/v1/getCities", response_model=GetCitiesResponse)
+async def get_cities(request: GetCitiesRequest):
+    """
+    Get all unique cities for a user based on their phone number.
+    
+    This endpoint:
+    1. Fetches user data by phoneNo
+    2. Extracts unique cities from user's locations
+    3. Returns list of cities with count
+    """
+    try:
+        # Get user data by phone number
+        user_data = await db_service.get_user_data(request.phoneNo)
+        
+        if not user_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Extract unique cities from user's locations
+        cities = set()
+        locations = user_data.get("locations", [])
+        
+        for location in locations:
+            city = location.get("city", "").strip()
+            if city:  # Only add non-empty cities
+                cities.add(city)
+        
+        # Convert to sorted list
+        cities_list = sorted(list(cities))
+        
+        return GetCitiesResponse(
+            success=True,
+            phoneNo=request.phoneNo,
+            cities=cities_list,
+            total_cities=len(cities_list),
+            message=f"Found {len(cities_list)} unique cities for user"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@app.post("/api/v1/getPois", response_model=GetPoisResponse)
+async def get_pois(request: GetPoisRequest):
+    """
+    Get all POIs (Points of Interest) for a user based on their phone number.
+    
+    This endpoint:
+    1. Fetches user data by phoneNo
+    2. Returns all locations (POIs) for the user
+    3. Each POI includes detailed information like name, category, coordinates, etc.
+    """
+    try:
+        # Get user data by phone number
+        user_data = await db_service.get_user_data(request.phoneNo)
+        
+        if not user_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Extract all locations (POIs) from user data
+        locations = user_data.get("locations", [])
+        pois = []
+        
+        for location in locations:
+            poi = PoiData(
+                poi_name=location.get("poi_name", ""),
+                category=location.get("category", ""),
+                geo_location=location.get("geo_location", [0.0, 0.0]),
+                maps_url=location.get("maps_url", ""),
+                website_url=location.get("website_url", ""),
+                photos_links=location.get("photos_links", []),
+                city=location.get("city", ""),
+                tgid=location.get("tgid"),
+                source_link=location.get("source_link", ""),
+                added_at=location.get("added_at", "").isoformat() if hasattr(location.get("added_at", ""), 'isoformat') else str(location.get("added_at", ""))
+            )
+            pois.append(poi)
+        
+        return GetPoisResponse(
+            success=True,
+            phoneNo=request.phoneNo,
+            pois=pois,
+            total_pois=len(pois),
+            message=f"Found {len(pois)} POIs for user"
+        )
+        
     except HTTPException:
         raise
     except Exception as e:
