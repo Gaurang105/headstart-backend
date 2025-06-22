@@ -3,34 +3,37 @@ from typing import Optional, List, Dict, Any
 
 
 class WhatsAppMessage(BaseModel):
-    id: str
-    created: str
-    whatsappMessageId: str
-    conversationId: str
-    ticketId: str
+    # Essential fields - always required
     text: str
-    type: str
+    waId: str
+    senderName: str
+    
+    # Optional fields from full WhatsApp bot payload
+    id: Optional[str] = None
+    created: Optional[str] = None
+    whatsappMessageId: Optional[str] = None
+    conversationId: Optional[str] = None
+    ticketId: Optional[str] = None
+    type: Optional[str] = None
     data: Optional[Any] = None
     sourceId: Optional[str] = None
     sourceUrl: Optional[str] = None
-    timestamp: str
-    owner: bool
-    eventType: str
-    statusString: str
+    timestamp: Optional[str] = None
+    owner: Optional[bool] = None
+    eventType: Optional[str] = None
+    statusString: Optional[str] = None
     avatarUrl: Optional[str] = None
     assignedId: Optional[str] = None
     operatorName: Optional[str] = None
     operatorEmail: Optional[str] = None
-    waId: str
     messageContact: Optional[Any] = None
-    senderName: str
     listReply: Optional[Any] = None
     interactiveButtonReply: Optional[Any] = None
     buttonReply: Optional[Any] = None
-    replyContextId: str
-    sourceType: int
-    frequentlyForwarded: bool
-    forwarded: bool
+    replyContextId: Optional[str] = None
+    sourceType: Optional[int] = None
+    frequentlyForwarded: Optional[bool] = None
+    forwarded: Optional[bool] = None
 
 
 class ExtractedData(BaseModel):

@@ -19,6 +19,10 @@ class Settings:
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
     
+    # MongoDB Configuration
+    MONGODB_URL = os.getenv("MONGODB_URL")
+    DATABASE_NAME = os.getenv("DATABASE_NAME")
+    
     # Request timeout in seconds
     REQUEST_TIMEOUT = 60
     
@@ -27,4 +31,4 @@ class Settings:
     DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 
 
-settings = Settings() 
+settings = Settings()

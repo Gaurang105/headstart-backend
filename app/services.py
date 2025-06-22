@@ -12,7 +12,7 @@ from app.models import (
     LocationData
 )
 from app.analysis.extract_locations import ExtractLocations, VideoType
-
+from app.db_services import db_service
 
 class ContentProcessor:
     """Service class for processing WhatsApp messages and fetching content data."""
@@ -31,6 +31,7 @@ class ContentProcessor:
             self.location_extractor = None
     
     def extract_data_from_message(self, message: WhatsAppMessage) -> ExtractedData:
+        """Extract required data from WhatsApp message."""
         platform = self.detect_platform(message.text)
         
         return ExtractedData(
@@ -41,6 +42,7 @@ class ContentProcessor:
         )
     
     def detect_platform(self, url: str) -> str:
+        """Detect if the URL is from YouTube or Instagram."""
         url_lower = url.lower()
         
         # YouTube patterns
@@ -67,6 +69,7 @@ class ContentProcessor:
         return 'unknown'
     
     async def fetch_youtube_data(self, url: str) -> Optional[YouTubeResponse]:
+        """Fetch YouTube video data from ScrapeCreators API."""
         headers = {
             'x-api-key': self.api_key,
             'Content-Type': 'application/json'
@@ -87,6 +90,7 @@ class ContentProcessor:
                 response.raise_for_status()
                 
                 data = response.json()
+                print("YouTube API Response:", data)
                 return YouTubeResponse(**data)
                 
         except httpx.HTTPError as e:
@@ -97,6 +101,7 @@ class ContentProcessor:
             return None
     
     async def fetch_instagram_data(self, url: str) -> Optional[InstagramResponse]:
+        """Fetch Instagram media transcript from ScrapeCreators API."""
         headers = {
             'x-api-key': self.api_key,
             'Content-Type': 'application/json'
@@ -116,6 +121,7 @@ class ContentProcessor:
                 response.raise_for_status()
                 
                 data = response.json()
+                print("Instagram API Response:", data)
                 return InstagramResponse(**data)
                 
         except httpx.HTTPError as e:
@@ -125,7 +131,7 @@ class ContentProcessor:
             print(f"Error occurred while fetching Instagram data: {e}")
             return None
     
-    def extract_locations_from_content(self, content_data: dict, platform: str) -> Optional[List[LocationData]]:
+    def extract_locations_from_content(self, content_data: dict, platform: str) -> Optional[List[dict]]:
         """Extract locations from content data."""
         if not self.location_extractor:
             print("Location extractor not available")
@@ -136,36 +142,56 @@ class ContentProcessor:
             locations_raw = self.location_extractor.extract_locations(content_data, video_type)
             
             if locations_raw:
-                # Convert to LocationData objects
-                locations = []
+                # Filter out locations with [0.0, 0.0] coordinates
+                valid_locations = []
                 for loc in locations_raw:
                     geo_location = loc.get('geo_location', [0.0, 0.0])
-                    # Skip locations with [0.0, 0.0] coordinates
                     if geo_location != [0.0, 0.0]:
-                        location_data = LocationData(
-                            poi_name=loc.get('poi_name', ''),
-                            category=loc.get('category', ''),
-                            geo_location=geo_location,
-                            maps_url=loc.get('maps_url', ''),
-                            website_url=loc.get('website_url', ''),
-                            photos_links=loc.get('photos_links', []),
-                            city=loc.get('city', ''),
-                            tgid=loc.get('tgid')
-                        )
-                        locations.append(location_data)
+                        valid_locations.append(loc)
                 
-                print(f"Extracted {len(locations)} locations from {platform} content")
-                return locations
+                print(f"Extracted {len(valid_locations)} valid locations from {platform} content")
+                return valid_locations
             else:
                 print(f"No locations found in {platform} content")
-                return None
+                return []
                 
         except Exception as e:
             print(f"Error extracting locations: {e}")
-            return None
+            return []
+    
+    async def fetch_content_and_locations(self, link: str, platform: str) -> tuple[Optional[dict], Optional[str], List[dict]]:
+        """Fetch content data and extract locations."""
+        content_data = None
+        author = None
+        locations = []
+        
+        try:
+            if platform == 'youtube':
+                youtube_data = await self.fetch_youtube_data(link)
+                if youtube_data:
+                    content_data = youtube_data.model_dump()
+                    channel = content_data.get('channel', {})
+                    author = channel.get('handle') if isinstance(channel, dict) else None
+                    locations = self.extract_locations_from_content(content_data, 'youtube') or []
+            
+            elif platform == 'instagram':
+                instagram_data = await self.fetch_instagram_data(link)
+                if instagram_data:
+                    content_data = instagram_data.model_dump()
+                    # Instagram doesn't have author/handle in the same way
+                    author = None
+                    locations = self.extract_locations_from_content(content_data, 'instagram') or []
+            
+            return content_data, author, locations
+        
+        except Exception as e:
+            print(f"Error fetching content and locations: {e}")
+            return None, None, []
     
     async def process_message(self, message: WhatsAppMessage) -> ProcessedResponse:
+        """Process WhatsApp message with database caching."""
         try:
+            # Extract data from message
             extracted_data = self.extract_data_from_message(message)
             
             if extracted_data.platform == 'unknown':
@@ -177,59 +203,77 @@ class ContentProcessor:
                     error="URL platform not supported. Only YouTube and Instagram are supported."
                 )
             
-            content_data = None
-            locations = None
+            link = extracted_data.text
+            phone_no = extracted_data.waId
+            name = extracted_data.senderName
             
-            if extracted_data.platform == 'youtube':
-                youtube_data = await self.fetch_youtube_data(extracted_data.text)
-                if youtube_data:
-                    content_data = youtube_data.model_dump()
-                    # Extract locations from YouTube data
-                    locations = self.extract_locations_from_content(content_data, 'youtube')
-                else:
+            # Step 1: Check if link exists in global database
+            print(f"Checking global database for link: {link}")
+            global_data = await db_service.get_global_link_data(link)
+            
+            if global_data:
+                # Link exists in database - use cached data
+                print("Link found in global database - using cached data")
+                locations = global_data.get('locations', [])
+                author = global_data.get('author')
+                
+                # Increment processed count
+                await db_service.increment_processed_count(link)
+                
+                # Update user data
+                await db_service.update_user_data(phone_no, name, link, locations)
+                
+            else:
+                # Link doesn't exist - fetch fresh data
+                print("Link not found in global database - fetching fresh data")
+                content_data, author, locations = await self.fetch_content_and_locations(
+                    link, extracted_data.platform
+                )
+                
+                if content_data is None:
                     return ProcessedResponse(
                         success=False,
-                        link=extracted_data.text,
-                        name=extracted_data.senderName,
-                        phoneNo=extracted_data.waId,
-                        error="Failed to fetch YouTube data"
+                        link=link,
+                        name=name,
+                        phoneNo=phone_no,
+                        error=f"Failed to fetch {extracted_data.platform} data"
                     )
+                
+                # Save to global database
+                await db_service.save_global_link_data(link, author, locations)
+                
+                # Update user data
+                await db_service.update_user_data(phone_no, name, link, locations)
             
-            elif extracted_data.platform == 'instagram':
-                instagram_data = await self.fetch_instagram_data(extracted_data.text)
-                if instagram_data:
-                    content_data = instagram_data.model_dump()
-                    # Extract locations from Instagram data
-                    locations = self.extract_locations_from_content(content_data, 'instagram')
-                else:
-                    return ProcessedResponse(
-                        success=False,
-                        link=extracted_data.text,
-                        name=extracted_data.senderName,
-                        phoneNo=extracted_data.waId,
-                        error="Failed to fetch Instagram data"
-                    )
-            
-            # Extract author from content data
-            author = None
-            
-            if content_data:
-                channel = content_data.get('channel', {})
-                author = channel.get('handle') if isinstance(channel, dict) else None
+            # Convert locations to LocationData objects for response
+            location_objects = []
+            for loc in locations:
+                location_data = LocationData(
+                    poi_name=loc.get('poi_name', ''),
+                    category=loc.get('category', ''),
+                    geo_location=loc.get('geo_location', [0.0, 0.0]),
+                    maps_url=loc.get('maps_url', ''),
+                    website_url=loc.get('website_url', ''),
+                    photos_links=loc.get('photos_links', []),
+                    city=loc.get('city', ''),
+                    tgid=loc.get('tgid')
+                )
+                location_objects.append(location_data)
             
             final_response = ProcessedResponse(
                 success=True,
-                link=extracted_data.text,
-                locations=locations,
+                link=link,
+                locations=location_objects,
                 author=author,
-                name=extracted_data.senderName,
-                phoneNo=extracted_data.waId
+                name=name,
+                phoneNo=phone_no
             )
             
             print("Final API Response:", final_response.model_dump())
             return final_response
             
         except Exception as e:
+            print(f"Error processing message: {e}")
             return ProcessedResponse(
                 success=False,
                 link=message.text,
@@ -237,5 +281,6 @@ class ContentProcessor:
                 phoneNo=message.waId,
                 error=f"Error processing message: {str(e)}"
             )
-        
-content_processor = ContentProcessor() 
+
+# Create singleton instance
+content_processor = ContentProcessor()

@@ -5,6 +5,7 @@ import uvicorn
 from app.config import settings
 from app.models import WhatsAppMessage, ProcessedResponse
 from app.services import content_processor
+from app.database import connect_to_mongo, close_mongo_connection
 
 # Create FastAPI app
 app = FastAPI(
@@ -17,12 +18,21 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Configure this properly for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Connect to MongoDB on startup"""
+    await connect_to_mongo()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close MongoDB connection on shutdown"""
+    await close_mongo_connection()
 
 @app.get("/health")
 async def health_check():
@@ -33,17 +43,16 @@ async def health_check():
         "status": "healthy"
     }
 
-
 @app.post("/api/v1/process-message", response_model=ProcessedResponse)
 async def process_whatsapp_message(message: WhatsAppMessage):
     """
     Process WhatsApp message and extract content data.
     
     This endpoint:
-    1. Extracts waId, senderName, and text from the WhatsApp message
-    2. Detects if the URL is from YouTube or Instagram
-    3. Fetches appropriate content data from the respective API
-    4. Returns processed response with content data
+    1. Checks if link exists in global database (cache)
+    2. If exists: fetches data from cache and updates user
+    3. If not exists: makes API calls, saves to global cache, updates user
+    4. Returns processed response with locations
     """
     try:
         result = await content_processor.process_message(message)
@@ -64,14 +73,10 @@ async def process_whatsapp_message(message: WhatsAppMessage):
             detail=f"Internal server error: {str(e)}"
         )
 
-
-
-
-
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG
-    ) 
+    )
