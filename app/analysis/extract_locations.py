@@ -4,7 +4,6 @@ import google.generativeai as genai
 from app.analysis.process_google_places import ProcessGooglePlaces
 from app.analysis.headout_integration import HeadoutIntegration
 from app.config import settings
-import asyncio
 
 
 class VideoType(Enum):

@@ -1,8 +1,4 @@
-import asyncio
-from typing import Optional, Dict, Any
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.types import Tool
+from typing import Optional
 import httpx
 
 class HeadoutIntegration:
