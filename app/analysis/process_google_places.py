@@ -33,8 +33,8 @@ class ProcessGooglePlaces:
                             
                             # Extract photo information
                             photos = []
-                            if 'photo' in result:
-                                for photo in result['photo'][:3]:  # Limit to first 3 photos
+                            if 'photos' in result:
+                                for photo in result['photos'][:3]:  # Limit to first 3 photos
                                     photo_ref = photo.get('photo_reference')
                                     if photo_ref:
                                         # Generate photo URL
@@ -120,3 +120,14 @@ class ProcessGooglePlaces:
                 print(f"Photos: {len(details['photos'])} available")
                 for i, photo in enumerate(details['photos'][:2], 1):  # Show first 2 photos
                     print(f"Photo {i}: {photo['url']}")
+
+if __name__ == "__main__":
+    # Test the Google Places functionality
+    processor = ProcessGooglePlaces()
+    test_places = ["Grand Canyon"]
+    
+    print("Testing Google Places API with 'Grand Canyon'...")
+    results = processor.get_google_places(test_places)
+    
+    for result in results:
+        processor.print_place_details(result['place_string'], result['details'])
