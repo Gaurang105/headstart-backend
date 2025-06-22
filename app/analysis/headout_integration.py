@@ -15,7 +15,7 @@ class HeadoutIntegration:
         """
         self.base_url = base_url
     
-    async def search_headout_products(self, city: str, poi_name: str) -> Optional[int]:
+    async def search_headout_products(self, city: str, poi_name: str) -> Optional[str]:
         """
         Search for products on Headout using city and POI name.
         
@@ -24,7 +24,7 @@ class HeadoutIntegration:
             poi_name: The point of interest name
             
         Returns:
-            ID of the first product result or None if failed
+            ID of the first product result as string or None if failed
         """
         try:
             # Create search query by combining city and POI name
