@@ -11,7 +11,7 @@ class VideoType(Enum):
 
 possible_categories = ["Eateries", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
 
-category_descriptions = """Here’s what each category means:
+category_descriptions = """Here's what each category means:
 
 - Eateries: Any location primarily focused on food or drink. Includes restaurants, cafes, food stalls, dessert
   shops, street food spots, breweries, or places known for a signature dish or culinary experience.
@@ -193,7 +193,12 @@ class ExtractLocations:
             place_details = google_places_data.get('details', {}) if google_places_data else {}
             
             if place_details:
-                coordinates = place_details.get('coordinates', [0.0, 0.0])
+                # Google Places returns coordinates as (lat, lng) but MongoDB 2dsphere index expects [lng, lat]
+                raw_coordinates = place_details.get('coordinates', (0.0, 0.0))
+                if raw_coordinates != (0.0, 0.0):
+                    # Swap from (lat, lng) to [lng, lat] for MongoDB geospatial indexing
+                    coordinates = [raw_coordinates[1], raw_coordinates[0]]  # [lng, lat]
+                
                 maps_url = place_details.get('google_maps_url', 'Unknown')
                 website_url = place_details.get('website', 'Unknown')
                 photos_links = place_details.get('photos', [])

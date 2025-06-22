@@ -104,7 +104,7 @@ class InstagramResponse(BaseModel):
 class LocationData(BaseModel):
     poi_name: str
     category: str
-    geo_location: List[float]  # [lat, lng]
+    geo_location: List[float]  # [lng, lat] for MongoDB 2dsphere compatibility
     maps_url: str
     website_url: str
     photos_links: List[Dict[str, Any]]
@@ -156,7 +156,7 @@ class GetPoisRequest(BaseModel):
 class PoiData(BaseModel):
     poi_name: str
     category: str
-    geo_location: List[float]  # [lat, lng]
+    geo_location: List[float]  # [lng, lat] for MongoDB 2dsphere compatibility
     maps_url: str
     website_url: str
     photos_links: List[Dict[str, Any]]
