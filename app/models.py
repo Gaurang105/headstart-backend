@@ -119,4 +119,18 @@ class ProcessedResponse(BaseModel):
     author: Optional[str] = None
     name: str
     phoneNo: str
+    error: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    name: str
+    phoneNo: str
+
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    user_exists: bool
+    name: str
+    phoneNo: str
     error: Optional[str] = None 

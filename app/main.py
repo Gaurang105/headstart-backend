@@ -3,9 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.config import settings
-from app.models import WhatsAppMessage, ProcessedResponse
+from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse
 from app.services import content_processor
 from app.database import connect_to_mongo, close_mongo_connection
+from app.db_services import db_service
 
 # Create FastAPI app
 app = FastAPI(
@@ -65,6 +66,56 @@ async def process_whatsapp_message(message: WhatsAppMessage):
         
         return result
         
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@app.post("/api/v1/login", response_model=LoginResponse)
+async def login_user(login_data: LoginRequest):
+    """
+    Simple login endpoint that registers user if they don't exist.
+    
+    This endpoint:
+    1. Checks if user exists in the database by phoneNo
+    2. If user exists: returns success with user_exists=True
+    3. If user doesn't exist: creates new user with empty links and locations
+    4. Returns login response with user details
+    """
+    try:
+        # Check if user already exists
+        existing_user = await db_service.get_user_data(login_data.phoneNo)
+        
+        if existing_user:
+            # User exists, return success
+            return LoginResponse(
+                success=True,
+                message="Login successful",
+                user_exists=True,
+                name=existing_user["name"],
+                phoneNo=existing_user["phoneNo"]
+            )
+        else:
+            # User doesn't exist, create new user
+            created = await db_service.create_user(login_data.name, login_data.phoneNo)
+            
+            if created:
+                return LoginResponse(
+                    success=True,
+                    message="User registered and logged in successfully",
+                    user_exists=False,
+                    name=login_data.name,
+                    phoneNo=login_data.phoneNo
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create user"
+                )
+                
     except HTTPException:
         raise
     except Exception as e:
