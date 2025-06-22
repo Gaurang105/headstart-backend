@@ -2,7 +2,9 @@ import json
 from enum import Enum
 import google.generativeai as genai
 from app.analysis.process_google_places import ProcessGooglePlaces
+from app.analysis.headout_integration import HeadoutIntegration
 from app.config import settings
+import asyncio
 
 
 class VideoType(Enum):
@@ -11,7 +13,7 @@ class VideoType(Enum):
 
 possible_categories = ["Eateries", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
 
-category_descriptions = """Here’s what each category means:
+category_descriptions = """Here's what each category means:
 
 - Eateries: Any location primarily focused on food or drink. Includes restaurants, cafes, food stalls, dessert
   shops, street food spots, breweries, or places known for a signature dish or culinary experience.
@@ -47,6 +49,12 @@ class ExtractLocations:
         except ValueError as e:
             print(f"Warning: Google Places API not available - {e}")
             self.google_places = None
+        
+        try:
+            self.headout_layer = HeadoutIntegration()
+        except ValueError as e:
+            print(f"Warning: Headout API not available - {e}")
+            self.headout_layer = None
 
     def send_llm_request(self, transcript_text, timestamps=None, timestamped=False):
         base_prompt = f"""
@@ -175,7 +183,7 @@ class ExtractLocations:
             print(f"Error calling Gemini API: {e}")
             return None
 
-    def _process_location_results(self, llm_result, google_places_results):
+    async def _process_location_results(self, llm_result, google_places_results):
         if not llm_result or 'locations' not in llm_result:
             return []
             
@@ -191,6 +199,7 @@ class ExtractLocations:
             coordinates = [0.0, 0.0]
             
             place_details = google_places_data.get('details', {}) if google_places_data else {}
+            tgid = await self.headout_layer.search_headout_products(city, name)
             
             if place_details:
                 coordinates = place_details.get('coordinates', [0.0, 0.0])
@@ -210,13 +219,13 @@ class ExtractLocations:
                 'website_url': website_url,
                 'photos_links': photos_links,
                 'city': city,
-                'tgid': None
+                'tgid': tgid
             }
             final_results.append(result)
             
         return final_results
 
-    def process_yt(self, data):
+    async def process_yt(self, data):
         try:
             transcript_text = data.get('transcript_only_text')
             
@@ -237,9 +246,9 @@ class ExtractLocations:
                     
                     if self.google_places:
                         google_places_results = self.google_places.get_google_places(location_strings)
-                        return self._process_location_results(llm_result, google_places_results)
+                        return await self._process_location_results(llm_result, google_places_results)
                     else:
-                        return self._process_location_results(llm_result, [])
+                        return await self._process_location_results(llm_result, [])
                 else:
                     print("No locations found in LLM response.")
                     return None
@@ -254,7 +263,7 @@ class ExtractLocations:
             print(f"Error: {e}")
             return None
 
-    def process_reels(self, data):
+    async def process_reels(self, data):
         try:
             transcript_text = data.get('transcripts')[0].get('text')
             
@@ -266,9 +275,9 @@ class ExtractLocations:
                 
                 if self.google_places:
                     google_places_results = self.google_places.get_google_places(location_strings)
-                    return self._process_location_results(llm_result, google_places_results)
+                    return await self._process_location_results(llm_result, google_places_results)
                 else:
-                    return self._process_location_results(llm_result, [])
+                    return await self._process_location_results(llm_result, [])
             else:
                 print("No locations found in LLM response.")
                 return None
@@ -277,23 +286,11 @@ class ExtractLocations:
             print(f"Error: {e}")
             return None
 
-    def extract_locations(self, data, video_type):
+    async def extract_locations(self, data, video_type):
         if video_type == VideoType.YOUTUBE:
-            return self.process_yt(data)
+            return await self.process_yt(data)
         elif video_type == VideoType.INSTAGRAM:
-            return self.process_reels(data)
+            return await self.process_reels(data)
         else:
             print(f"Unsupported video type: {video_type}")
             return None
-
-
-if __name__ == "__main__":
-    extractor = ExtractLocations()
-
-    json_file = "tests/youtube.json"
-    with open(json_file, 'r', encoding='utf-8') as file:
-        data = json.load(file)
-    
-    locations = extractor.extract_locations(data, VideoType.YOUTUBE) 
-
-    print(locations)

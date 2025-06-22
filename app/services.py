@@ -131,7 +131,7 @@ class ContentProcessor:
             print(f"Error occurred while fetching Instagram data: {e}")
             return None
     
-    def extract_locations_from_content(self, content_data: dict, platform: str) -> Optional[List[dict]]:
+    async def extract_locations_from_content(self, content_data: dict, platform: str) -> Optional[List[dict]]:
         """Extract locations from content data."""
         if not self.location_extractor:
             print("Location extractor not available")
@@ -139,7 +139,7 @@ class ContentProcessor:
             
         try:
             video_type = VideoType.YOUTUBE if platform == 'youtube' else VideoType.INSTAGRAM
-            locations_raw = self.location_extractor.extract_locations(content_data, video_type)
+            locations_raw = await self.location_extractor.extract_locations(content_data, video_type)
             
             if locations_raw:
                 # Filter out locations with [0.0, 0.0] coordinates
@@ -172,7 +172,7 @@ class ContentProcessor:
                     content_data = youtube_data.model_dump()
                     channel = content_data.get('channel', {})
                     author = channel.get('handle') if isinstance(channel, dict) else None
-                    locations = self.extract_locations_from_content(content_data, 'youtube') or []
+                    locations = await self.extract_locations_from_content(content_data, 'youtube') or []
             
             elif platform == 'instagram':
                 instagram_data = await self.fetch_instagram_data(link)
@@ -180,7 +180,7 @@ class ContentProcessor:
                     content_data = instagram_data.model_dump()
                     # Instagram doesn't have author/handle in the same way
                     author = None
-                    locations = self.extract_locations_from_content(content_data, 'instagram') or []
+                    locations = await self.extract_locations_from_content(content_data, 'instagram') or []
             
             return content_data, author, locations
         
@@ -284,3 +284,4 @@ class ContentProcessor:
 
 # Create singleton instance
 content_processor = ContentProcessor()
+
