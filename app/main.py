@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.config import settings
-from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse, GetCitiesRequest, GetCitiesResponse, GetPoisRequest, PoiData, GetPoisResponse
+from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse, GetCitiesRequest, GetCitiesResponse, GetPoisRequest, PoiData, GetPoisResponse, GetLinksRequest, LinkData, GetLinksResponse
 from app.services import content_processor
 from app.database import connect_to_mongo, close_mongo_connection
 from app.db_services import db_service
@@ -217,6 +217,56 @@ async def get_pois(request: GetPoisRequest):
             pois=pois,
             total_pois=len(pois),
             message=f"Found {len(pois)} POIs for user"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@app.post("/api/v1/getLinks", response_model=GetLinksResponse)
+async def get_links(request: GetLinksRequest):
+    """
+    Get all links for a user based on their phone number.
+    
+    This endpoint:
+    1. Fetches user data by phoneNo
+    2. Returns all links for the user
+    3. Each link includes URL and timestamp when it was added
+    """
+    try:
+        # Get user data by phone number
+        user_data = await db_service.get_user_data(request.phoneNo)
+        
+        if not user_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Extract all links from user data
+        user_links = user_data.get("links", [])
+        links = []
+        
+        for link in user_links:
+            link_data = LinkData(
+                url=link.get("url", ""),
+                added_at=link.get("added_at", "").isoformat() if hasattr(link.get("added_at", ""), 'isoformat') else str(link.get("added_at", ""))
+            )
+            links.append(link_data)
+        
+        # Sort links by added_at in descending order (newest first)
+        links.sort(key=lambda x: x.added_at, reverse=True)
+        
+        return GetLinksResponse(
+            success=True,
+            phoneNo=request.phoneNo,
+            links=links,
+            total_links=len(links),
+            message=f"Found {len(links)} links for user"
         )
         
     except HTTPException:

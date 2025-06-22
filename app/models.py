@@ -172,4 +172,22 @@ class GetPoisResponse(BaseModel):
     pois: List[PoiData]
     total_pois: int
     message: str
+    error: Optional[str] = None
+
+
+class GetLinksRequest(BaseModel):
+    phoneNo: str
+
+
+class LinkData(BaseModel):
+    url: str
+    added_at: str  # ISO datetime string
+
+
+class GetLinksResponse(BaseModel):
+    success: bool
+    phoneNo: str
+    links: List[LinkData]
+    total_links: int
+    message: str
     error: Optional[str] = None 
