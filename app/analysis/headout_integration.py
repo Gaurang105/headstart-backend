@@ -47,7 +47,7 @@ class HeadoutIntegration:
                         values = result.get('values', [])
                         if values:
                             first_product_id = values[0].get('id')
-                            return first_product_id
+                            return str(first_product_id) if first_product_id is not None else None
                 
                 return None
                 
