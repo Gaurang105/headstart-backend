@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from app.database import get_global_collection, get_users_collection
@@ -183,6 +183,57 @@ class DatabaseService:
             return True
         except Exception as e:
             logger.error(f"Error updating user data: {e}")
+            return False
+
+    async def is_message_processed(self, message_id: str) -> bool:
+        """Check if a message has already been processed"""
+        try:
+            if not message_id:
+                return False
+            
+            # Use a separate collection for processed messages
+            db = self.global_collection.database
+            processed_messages_collection = db.processed_messages
+            result = await processed_messages_collection.find_one({"message_id": message_id})
+            return result is not None
+        except Exception as e:
+            logger.error(f"Error checking if message is processed: {e}")
+            return False
+
+    async def mark_message_as_processed(self, message_id: str, phone_no: str, link: str) -> bool:
+        """Mark a message as processed to prevent duplicate processing"""
+        try:
+            if not message_id:
+                return False
+            
+            db = self.global_collection.database
+            processed_messages_collection = db.processed_messages
+            
+            # Create TTL index if it doesn't exist (messages expire after 7 days)
+            try:
+                await processed_messages_collection.create_index("expires_at", expireAfterSeconds=0)
+            except Exception:
+                pass  # Index might already exist
+            
+            doc = {
+                "message_id": message_id,
+                "phone_no": phone_no,
+                "link": link,
+                "processed_at": datetime.utcnow(),
+                # TTL - automatically delete after 7 days
+                "expires_at": datetime.utcnow() + timedelta(days=7)
+            }
+            
+            # Use upsert to prevent duplicate entries
+            result = await processed_messages_collection.replace_one(
+                {"message_id": message_id},
+                doc,
+                upsert=True
+            )
+            logger.info(f"Marked message as processed: {message_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error marking message as processed: {e}")
             return False
 
 # Create singleton instance

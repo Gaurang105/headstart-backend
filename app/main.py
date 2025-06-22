@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from datetime import datetime
 
 from app.config import settings
 from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse, GetCitiesRequest, GetCitiesResponse, GetPoisRequest, PoiData, GetPoisResponse, GetLinksRequest, LinkData, GetLinksResponse
@@ -50,29 +51,62 @@ async def process_whatsapp_message(message: WhatsAppMessage):
     Process WhatsApp message and extract content data.
     
     This endpoint:
-    1. Checks if link exists in global database (cache)
-    2. If exists: fetches data from cache and updates user
-    3. If not exists: makes API calls, saves to global cache, updates user
-    4. Returns processed response with locations
+    1. Returns HTTP 200 immediately to prevent WhatsApp retries
+    2. Processes message asynchronously in background
+    3. Uses message deduplication to prevent duplicate processing
     """
     try:
-        result = await content_processor.process_message(message)
+        # Check for message deduplication first
+        message_id = message.whatsappMessageId or message.id or f"{message.waId}_{message.text}_{message.timestamp}"
         
-        if not result.success:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.error
+        if message_id and await db_service.is_message_processed(message_id):
+            # Message already processed, return success immediately
+            return ProcessedResponse(
+                success=True,
+                link=message.text,
+                locations=[],
+                name=message.senderName,
+                phoneNo=message.waId,
+                error="Message already processed"
             )
         
-        return result
+        # Mark message as being processed to prevent duplicates
+        if message_id:
+            await db_service.mark_message_as_processed(message_id, message.waId, message.text)
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
+        # Start background processing
+        import asyncio
+        asyncio.create_task(process_message_async(message))
+        
+        # Return immediate success response to prevent WhatsApp retries
+        return ProcessedResponse(
+            success=True,
+            link=message.text,
+            locations=[],
+            name=message.senderName,
+            phoneNo=message.waId,
+            error="Processing started - check back later for results"
         )
+        
+    except Exception as e:
+        print(f"Error starting message processing: {e}")
+        return ProcessedResponse(
+            success=False,
+            link=message.text,
+            name=message.senderName,
+            phoneNo=message.waId,
+            error=f"Error starting processing: {str(e)}"
+        )
+
+async def process_message_async(message: WhatsAppMessage):
+    """Process message asynchronously in the background"""
+    try:
+        print(f"Starting async processing for message: {message.text}")
+        result = await content_processor.process_message(message)
+        print(f"Async processing completed for: {message.text}")
+        print(f"Result: {result.model_dump()}")
+    except Exception as e:
+        print(f"Error in async processing: {e}")
 
 @app.post("/api/v1/login", response_model=LoginResponse)
 async def login_user(login_data: LoginRequest):
@@ -276,6 +310,55 @@ async def get_links(request: GetLinksRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"
         )
+
+@app.get("/api/v1/processing-status/{phone_no}")
+async def get_processing_status(phone_no: str):
+    """
+    Get the current processing status and recent results for a user.
+    This can be used to check if background processing is complete.
+    """
+    try:
+        # Get user's recent links to see latest processed data
+        user_data = await db_service.get_user_data(phone_no)
+        
+        if not user_data:
+            return {
+                "success": False,
+                "message": "User not found",
+                "phone_no": phone_no
+            }
+        
+        # Get latest link and locations
+        links = user_data.get("links", [])
+        locations = user_data.get("locations", [])
+        
+        # Sort by added_at to get most recent
+        if links:
+            latest_link = max(links, key=lambda x: x.get("added_at", datetime.min))
+            recent_locations = [
+                loc for loc in locations 
+                if loc.get("source_link") == latest_link.get("url")
+            ]
+        else:
+            latest_link = None
+            recent_locations = []
+        
+        return {
+            "success": True,
+            "phone_no": phone_no,
+            "latest_link": latest_link,
+            "recent_locations": recent_locations,
+            "total_links": len(links),
+            "total_locations": len(locations),
+            "message": "Processing status retrieved successfully"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error retrieving status: {str(e)}",
+            "phone_no": phone_no
+        }
 
 if __name__ == "__main__":
     uvicorn.run(
