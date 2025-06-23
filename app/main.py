@@ -1,7 +1,10 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 import uvicorn
 from datetime import datetime
+import json
 
 from app.config import settings
 from app.models import WhatsAppMessage, ProcessedResponse, LoginRequest, LoginResponse, GetCitiesRequest, GetCitiesResponse, GetPoisRequest, PoiData, GetPoisResponse, GetLinksRequest, LinkData, GetLinksResponse
@@ -25,6 +28,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add custom exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log validation errors with request body for debugging"""
+    try:
+        # Try to get the request body
+        body = await request.body()
+        body_str = body.decode('utf-8') if body else "No body"
+        
+        print(f"Validation Error on {request.url.path}")
+        print(f"Request body: {body_str}")
+        print(f"Validation errors: {exc.errors()}")
+        print(f"Request headers: {dict(request.headers)}")
+        
+    except Exception as e:
+        print(f"Error logging validation error: {e}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": "Validation failed. Check server logs for details."
+        }
+    )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests for debugging"""
+    if request.url.path == "/api/v1/process-message" and request.method == "POST":
+        # Clone the body for logging (be careful with large bodies in production)
+        body = await request.body()
+        print(f"Incoming request to {request.url.path}")
+        print(f"Headers: {dict(request.headers)}")
+        print(f"Body: {body.decode('utf-8') if body else 'No body'}")
+        
+        # Recreate the request with the body we read
+        from starlette.requests import Request as StarletteRequest
+        request = StarletteRequest(request.scope, receive=lambda: {"type": "http.request", "body": body})
+    
+    response = await call_next(request)
+    return response
 
 @app.on_event("startup")
 async def startup_event():
