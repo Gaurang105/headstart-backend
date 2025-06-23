@@ -121,6 +121,51 @@ Get all links for a user based on their phone number.
 }
 ```
 
+#### GET `/api/v1/processing-status/{phone_no}`
+Get the current processing status and recent results for a user. This can be used to check if background processing is complete.
+
+**Request**: 
+- Path parameter: `phone_no` (user's phone number)
+- Example: `GET /api/v1/processing-status/+1234567890`
+
+**Response**:
+```json
+{
+  "success": true,
+  "phone_no": "+1234567890",
+  "latest_link": {
+    "url": "https://youtube.com/watch?v=abc123",
+    "added_at": "2024-01-16T14:20:00Z"
+  },
+  "recent_locations": [
+    {
+      "poi_name": "Eiffel Tower",
+      "category": "Tourist Attraction",
+      "geo_location": [48.8584, 2.2945],
+      "maps_url": "https://maps.google.com/...",
+      "website_url": "https://www.toureiffel.paris/",
+      "photos_links": [],
+      "city": "Paris",
+      "tgid": "ChIJLU7jZClu5kcR4PcOOO6p3I0",
+      "source_link": "https://youtube.com/watch?v=abc123",
+      "added_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "total_links": 5,
+  "total_locations": 15,
+  "message": "Processing status retrieved successfully"
+}
+```
+
+**Error Response** (User not found):
+```json
+{
+  "success": false,
+  "message": "User not found",
+  "phone_no": "+1234567890"
+}
+```
+
 ### Content Processing
 
 #### POST `/api/v1/process-message`
@@ -235,82 +280,4 @@ Health check endpoint for monitoring.
 6. Returns processed response with location data
 
 ### User Data Retrieval Flow
-1. Client sends phoneNo to respective endpoints (`/getCities`, `/getPois`, `/getLinks`)
-2. System fetches user data using phoneNo as primary key
-3. Processes and returns requested data (cities, POIs, or links)
-
-## Error Handling
-
-The API includes comprehensive error handling:
-- Input validation using Pydantic models
-- HTTP error handling for external API calls
-- 404 responses for non-existent users
-- Graceful degradation for unsupported platforms
-- Detailed error messages in responses
-- Database connection error handling
-
-## Tech Stack
-
-- **FastAPI**: Modern, fast web framework
-- **MongoDB**: NoSQL database for user and content storage
-- **Motor**: Async MongoDB driver
-- **Pydantic**: Data validation and serialization
-- **httpx**: Async HTTP client for external API calls
-- **uvicorn**: ASGI server for running the application
-
-## Development
-
-### Project Structure
-```
-headstart-backend/
-├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI application and endpoints
-│   ├── models.py            # Pydantic models for API requests/responses
-│   ├── db_models.py         # Database document models
-│   ├── services.py          # Business logic for content processing
-│   ├── db_services.py       # Database operations
-│   ├── database.py          # MongoDB connection and configuration
-│   ├── config.py            # Configuration settings
-│   └── analysis/            # Content analysis modules
-│       ├── extract_locations.py
-│       └── process_google_places.py
-├── requirements.txt         # Dependencies
-├── .env.example            # Environment template
-├── README.md               # Documentation
-└── run.py 
-```
-
-## Environment Configuration
-
-Required environment variables:
-```bash
-MONGODB_URL=mongodb://localhost:27017
-DATABASE_NAME=headstart
-API_TITLE=Headstart Backend API
-API_VERSION=1.0.0
-DEBUG=true
-```
-
-## Production Deployment
-
-For production deployment, consider:
-- Setting `DEBUG=false` in environment
-- Configuring proper CORS origins
-- Using a production ASGI server like Gunicorn
-- Setting up proper logging and monitoring
-- Implementing rate limiting and authentication
-
-## API Documentation
-
-Once the server is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test your implementation
-5. Submit a pull request
+1. Client sends phoneNo to respective endpoints (`
