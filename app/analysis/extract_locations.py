@@ -10,11 +10,11 @@ class VideoType(Enum):
     YOUTUBE = "youtube"
     INSTAGRAM = "instagram"
 
-possible_categories = ["Eateries", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
+possible_categories = ["Restaurants", "Attractions", "Stay", "Shopping", "Nature & Parks", "Hidden Gems", "Nightlife"]
 
 category_descriptions = """Here's what each category means:
 
-- Eateries: Any location primarily focused on food or drink. Includes restaurants, cafes, food stalls, dessert
+- Restaurants: Any location primarily focused on food or drink. Includes restaurants, cafes, food stalls, dessert
   shops, street food spots, breweries, or places known for a signature dish or culinary experience.
 
 - Attractions: Well-known or iconic places that people visit for sightseeing or experiences. This includes
